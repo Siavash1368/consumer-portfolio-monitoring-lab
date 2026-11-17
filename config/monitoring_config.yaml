@@ -1,0 +1,167 @@
+# ---------------------------------------------------------------------------
+# Consumer Portfolio Monitoring Lab - declared parameters
+#
+# Everything the pack measures itself against is declared HERE, before the
+# numbers are produced. Nothing in the code hard-codes a threshold. Changing a
+# number in this file and re-running is the only supported way to move a limit,
+# and config_version is stamped onto every output so a reviewer can tell which
+# parameter set produced a given pack.
+#
+# SCOPE NOTE: the limits and triggers below are ILLUSTRATIVE. They are set by
+# the author to exercise the monitoring machinery on a public dataset. They are
+# not any institution's risk appetite.
+# ---------------------------------------------------------------------------
+config_version: "1.0.0"
+effective_date: "2026-11-17"
+
+source:
+  # read-only; the lab never writes to the modelling database
+  freddie_db: "../data/freddiemac.duckdb"
+  mart_db: "data/monitoring.duckdb"
+  portfolio_name: "Freddie Mac Single-Family (public loan-level), 2003-2009 vintages"
+
+reporting:
+  default_asof: "202509"          # latest complete servicer reporting month
+  featured_asof: "200906"         # worked example for the committee one-pager
+  currency_scale: 1000000000      # report balances in $bn
+
+# --- segment band definitions -------------------------------------------
+bands:
+  fico:
+    - {label: "01 <620",     lo: 0,   hi: 619}
+    - {label: "02 620-659",  lo: 620, hi: 659}
+    - {label: "03 660-699",  lo: 660, hi: 699}
+    - {label: "04 700-739",  lo: 700, hi: 739}
+    - {label: "05 740-779",  lo: 740, hi: 779}
+    - {label: "06 780+",     lo: 780, hi: 850}
+  ltv:
+    - {label: "01 <=60",     lo: 0,   hi: 60}
+    - {label: "02 61-70",    lo: 61,  hi: 70}
+    - {label: "03 71-80",    lo: 71,  hi: 80}
+    - {label: "04 81-90",    lo: 81,  hi: 90}
+    - {label: "05 91-95",    lo: 91,  hi: 95}
+    - {label: "06 >95",      lo: 96,  hi: 200}
+  term_months:
+    - {label: "01 <=180",    lo: 0,   hi: 180}
+    - {label: "02 181-300",  lo: 181, hi: 300}
+    - {label: "03 301-360",  lo: 301, hi: 360}
+    - {label: "04 >360",     lo: 361, hi: 600}
+
+# --- state / status definitions -----------------------------------------
+definitions:
+  # Two distinct event definitions are carried end to end on purpose; the pack
+  # reports both and flow_to_loss connects them.
+  delinquency_default: "90+ days past due (status >= 3) - the monitoring definition"
+  credit_event: "zero-balance code 02 third-party sale, 03 short sale/charge-off, 09 REO disposition - the loss definition"
+  other_disposition: "zero-balance code 15 note sale, 16 reperforming loan sale, 96 removal - excluded from credit losses"
+  prepaid: "zero-balance code 01 prepaid or matured"
+
+# --- risk appetite limits (ILLUSTRATIVE) ---------------------------------
+# utilisation = measured / limit. breach when utilisation > 1.0
+risk_appetite_limits:
+  - id: RA-01
+    name: "90+ delinquency rate (balance-weighted)"
+    metric: dpd90p_rate_upb
+    dimension: portfolio
+    limit: 0.0400
+    direction: max
+    rationale: "Illustrative board-level asset-quality limit."
+  - id: RA-02
+    name: "Single-state balance concentration"
+    metric: share_upb
+    dimension: state
+    limit: 0.1800
+    direction: max
+    rationale: "Illustrative geographic concentration limit, largest single state."
+  - id: RA-03
+    name: "Balance share with original LTV > 90"
+    metric: share_upb
+    dimension: ltv_band
+    dimension_values: ["05 91-95", "06 >95"]
+    limit: 0.1200
+    direction: max
+    rationale: "Illustrative high-LTV origination-mix limit."
+  - id: RA-04
+    name: "Balance share with FICO < 660"
+    metric: share_upb
+    dimension: fico_band
+    dimension_values: ["01 <620", "02 620-659"]
+    limit: 0.1000
+    direction: max
+    rationale: "Illustrative thin-credit concentration limit."
+  - id: RA-05
+    name: "Investor-occupancy balance share"
+    metric: share_upb
+    dimension: occupancy
+    dimension_values: ["I"]
+    limit: 0.0600
+    direction: max
+    rationale: "Illustrative non-owner-occupied concentration limit."
+
+# --- early warning triggers ----------------------------------------------
+# Evaluated every as-of month. Each has an amber and a red level and a declared
+# action. A trigger that fires is written to the breach log with its inputs.
+early_warning_triggers:
+  - id: EW-01
+    name: "90+ rate, 3-month change"
+    metric: dpd90p_rate_upb_chg_3m
+    amber: 0.0025
+    red: 0.0050
+    direction: max
+    action: "Amber: segment-level attribution in next pack. Red: escalate to Credit Risk Committee with a driver decomposition."
+  - id: EW-02
+    name: "Early-stage inflow (current to 30) rate"
+    metric: roll_cur_to_30
+    amber: 0.0150
+    red: 0.0250
+    direction: max
+    action: "Amber: review servicing and seasonal pattern. Red: escalate; check for a vintage or geography driver."
+  - id: EW-03
+    name: "30 to 60 roll rate"
+    metric: roll_30_to_60
+    amber: 0.3000
+    red: 0.4000
+    direction: max
+    action: "Amber: monitor cure performance. Red: escalate - deterioration is progressing past early stage."
+  - id: EW-04
+    name: "Cure rate out of 30 DPD"
+    metric: cure_30_to_cur
+    amber: 0.4000
+    red: 0.3000
+    direction: min
+    action: "Amber: review loss-mitigation effectiveness. Red: escalate - curing has materially weakened."
+  - id: EW-05
+    name: "Flow to loss (90+ to credit event, 12m)"
+    metric: flow_to_loss_12m
+    amber: 0.2500
+    red: 0.3500
+    direction: max
+    action: "Amber: review severity assumptions. Red: escalate to allowance review."
+
+# --- model performance monitoring ----------------------------------------
+model_monitoring:
+  psi:
+    amber: 0.10
+    red: 0.25
+    action_amber: "Investigate the shifted characteristics; document in the monitoring pack."
+    action_red: "Formal model review; notify model risk management; consider recalibration."
+  auroc:
+    # absolute drop versus the development benchmark
+    amber: 0.03
+    red: 0.05
+    action_amber: "Re-check scoring population and feature availability."
+    action_red: "Model performance escalation; redevelopment assessment."
+  calibration_ratio:
+    # predicted / actual; a band around 1.0
+    amber_lo: 0.90
+    amber_hi: 1.10
+    red_lo: 0.80
+    red_hi: 1.25
+    action_amber: "Document the bias direction and monitor for three consecutive months."
+    action_red: "Recalibration required before the model is used for allowance or pricing."
+
+# --- reconciliation controls ---------------------------------------------
+controls:
+  reconciliation_tolerance_loans: 0        # exact match required on counts
+  reconciliation_tolerance_upb_pct: 0.0001 # 1 basis point on balances
+  dq_fail_action: "A failed control blocks publication of the pack. The run writes FAIL to the control report and exits non-zero."

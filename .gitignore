@@ -1,0 +1,10 @@
+# derived artefacts - rebuilt by the pipeline, never committed
+data/*.duckdb
+data/*.duckdb.wal
+data/duck_tmp/
+outputs/
+logs/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
