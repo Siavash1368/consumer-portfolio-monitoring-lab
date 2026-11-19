@@ -1,0 +1,3 @@
+asof,kind,id,name,value,threshold,status,action
+202509,risk_appetite_limit,RA-04,Balance share with FICO < 660,0.16281962943130976,0.1,BREACH,Report utilisation to committee; breach requires a documented remediation plan.
+202509,early_warning_trigger,EW-02,Early-stage inflow (current to 30) rate,0.09608702220879287,0.025,RED,Amber: review servicing and seasonal pattern. Red: escalate; check for a vintage or geography driver.

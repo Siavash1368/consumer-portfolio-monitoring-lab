@@ -1,0 +1,66 @@
+{
+  "asof": "200906",
+  "config_version": "1.0.0",
+  "generated_at_utc": "2026-11-17T15:32:34+00:00",
+  "portfolio": "Freddie Mac Single-Family (public loan-level), 2003-2009 vintages",
+  "mart_months": {
+    "min": "200212",
+    "max": "202509",
+    "n": 274
+  },
+  "mart_rows": {
+    "fact_cube": 167334,
+    "fact_transition": 8712,
+    "dim_loan": 13084968,
+    "fact_control_totals": 274
+  },
+  "headline": {
+    "active_loans": 8077423,
+    "active_upb": 1252415102564.3164,
+    "dpd90p_rate_upb": 0.021236671476767142
+  },
+  "limits_breached": [],
+  "triggers_fired": [
+    "EW-01",
+    "EW-04",
+    "EW-05"
+  ],
+  "files": [
+    {
+      "file": "portfolio_trend.csv",
+      "rows": 79
+    },
+    {
+      "file": "roll_rate_matrix.csv",
+      "rows": 2037
+    },
+    {
+      "file": "roll_rates_headline.csv",
+      "rows": 453
+    },
+    {
+      "file": "vintage_curves.csv",
+      "rows": 1932
+    },
+    {
+      "file": "denominator_check.csv",
+      "rows": 79
+    },
+    {
+      "file": "concentration.csv",
+      "rows": 97
+    },
+    {
+      "file": "risk_appetite_limits.csv",
+      "rows": 5
+    },
+    {
+      "file": "early_warning_triggers.csv",
+      "rows": 5
+    },
+    {
+      "file": "breach_log.csv",
+      "rows": 4
+    }
+  ]
+}

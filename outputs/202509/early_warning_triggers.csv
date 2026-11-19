@@ -1,0 +1,6 @@
+asof,trigger_id,name,metric,value,amber,red,direction,status,action
+202509,EW-01,"90+ rate, 3-month change",dpd90p_rate_upb_chg_3m,-0.0001766399565239253,0.0025,0.005,max,GREEN,
+202509,EW-02,Early-stage inflow (current to 30) rate,roll_cur_to_30,0.09608702220879287,0.015,0.025,max,RED,Amber: review servicing and seasonal pattern. Red: escalate; check for a vintage or geography driver.
+202509,EW-03,30 to 60 roll rate,roll_30_to_60,0.04657534246575343,0.3,0.4,max,GREEN,
+202509,EW-04,Cure rate out of 30 DPD,cure_30_to_cur,0.6917808219178082,0.4,0.3,min,GREEN,
+202509,EW-05,"Flow to loss (90+ to credit event, 12m)",flow_to_loss_12m,,0.25,0.35,max,NO DATA,

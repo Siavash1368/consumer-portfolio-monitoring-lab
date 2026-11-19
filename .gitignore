@@ -2,7 +2,9 @@
 data/*.duckdb
 data/*.duckdb.wal
 data/duck_tmp/
-outputs/
+outputs/*
+!outputs/200906/
+!outputs/202509/
 logs/
 __pycache__/
 *.pyc

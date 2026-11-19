@@ -1,0 +1,5 @@
+asof,kind,id,name,value,threshold,status,action
+200906,risk_appetite_limit,RA-04,Balance share with FICO < 660,0.09841029439229412,0.1,WATCH,Report utilisation to committee; breach requires a documented remediation plan.
+200906,early_warning_trigger,EW-01,"90+ rate, 3-month change",0.004426992404979534,0.005,AMBER,Amber: segment-level attribution in next pack. Red: escalate to Credit Risk Committee with a driver decomposition.
+200906,early_warning_trigger,EW-04,Cure rate out of 30 DPD,0.3749166042267544,0.3,AMBER,Amber: review loss-mitigation effectiveness. Red: escalate - curing has materially weakened.
+200906,early_warning_trigger,EW-05,"Flow to loss (90+ to credit event, 12m)",0.4721587103628259,0.35,RED,Amber: review severity assumptions. Red: escalate to allowance review.
