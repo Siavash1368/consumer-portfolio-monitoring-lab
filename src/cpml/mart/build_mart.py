@@ -226,8 +226,8 @@ def _exec_script(con, script: str) -> None:
 
 
 def _done(con, chunk: str, pas: str) -> bool:
-    return con.sql(
-        "SELECT COUNT(*) FROM build_log WHERE chunk=? AND pass=?", params=[chunk, pas]
+    return con.execute(
+        "SELECT COUNT(*) FROM build_log WHERE chunk=? AND pass=?", [chunk, pas]
     ).fetchone()[0] > 0
 
 
@@ -288,7 +288,7 @@ def run(passes: list[str], vintages: list[str], reset: bool = False,
     total = sum(len(config.chunks_for(p, v))
                 for v in config.VINTAGE_PREFIXES
                 for p in ("cube", "trans", "loan", "control"))
-    done_now = con.sql("SELECT COUNT(*) FROM build_log").fetchone()[0]
+    done_now = con.execute("SELECT COUNT(*) FROM build_log").fetchone()[0]
     print(f"[state] {total - done_now} of {total} total work items remain",
           flush=True)
     con.close()
@@ -321,7 +321,7 @@ def finalize() -> None:
         FROM stg_control GROUP BY 1;
     """)
     for t in ("fact_cube", "fact_transition", "dim_loan", "fact_control_totals"):
-        n = con.sql(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+        n = con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
         print(f"  {t:22s} {n:>12,} rows")
     con.close()
 

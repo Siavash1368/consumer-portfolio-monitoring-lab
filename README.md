@@ -5,10 +5,12 @@ Single-Family Loan-Level Dataset**: 13,084,969 loans originated 2003Q1–2009Q4,
 observed monthly from December 2002 through September 2025 (933,443,821
 loan-month records).
 
-One command produces the whole monitoring pack for a reporting month:
+One command produces the whole monitoring pack for a reporting month,
+including the committee one-pager and the reconciliation control:
 
 ```bash
 python src/cpml/run_monthly.py --asof 200906
+python tests/run_tests.py        # or: pytest -q tests
 ```
 
 > **Scope, stated plainly.** Public agency mortgage data only — one first-lien
@@ -26,16 +28,21 @@ python src/cpml/run_monthly.py --asof 200906
 |---|---|
 | Monitoring mart (933M rows → small aggregate cubes), resumable build | **Built** |
 | Roll rates, cure rates, flow-to-loss | **Built** |
-| Vintage curves (cumulative ever-90+ and credit events by months on book) | **Built** |
+| Vintage curves, point-in-time (only data available at the as-of month) | **Built** |
 | Concentration by state, FICO, LTV, purpose, occupancy, property type, channel, term, vintage | **Built** |
+| 12-month attribution of the 90+ rate: within-segment change vs mix (shift-share) | **Built** |
 | Illustrative risk-appetite limits with utilisation | **Built** |
 | Early-warning triggers (amber/red, declared actions) and breach log | **Built** |
 | Denominator-effect check (current vs lagged balance) | **Built** |
-| Reconciliation of mart to independent source control totals | **Built** (report formatting in progress) |
+| Reconciliation control: PASS / EXPLAINED / FAIL against independent source totals; a FAIL blocks publication | **Built** |
+| **Committee one-page summary** — what changed, where, why, so what | **Built** — [`outputs/200906/committee_summary.md`](outputs/200906/committee_summary.md) |
+| **Tests** — 9 unit tests on a synthetic mart + 5 integration tests on the real mart; CI runs the unit tests | **Built** |
+| Tableau extracts (one tidy file for the dashboard) and build guide | **Built** — [`docs/TABLEAU_GUIDE.md`](docs/TABLEAU_GUIDE.md) |
+| Tableau Public dashboard | link pending |
 | Model-performance monitoring (PSI / AUROC / calibration escalation) | In progress |
 | CECL and PD trends, forecast vs actual | In progress |
 | Y-14M-style first-lien schedule, data-quality report, procedures | In progress |
-| Tableau dashboards, Excel refresh, test suite | In progress |
+| Excel refresh workbook | In progress |
 
 The models this lab will monitor (hazard PD, LGD, CECL lifetime loss, DFAST
 stress, walk-forward backtests) live in the companion repository
@@ -79,7 +86,7 @@ hard-coded. `config_version` is stamped onto every pack's manifest.
 
 ---
 
-## Two defects the controls found
+## Defects found by the controls and the tests
 
 Recorded in full, with re-run instructions, in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
@@ -94,7 +101,19 @@ Recorded in full, with re-run instructions, in [`docs/CHANGELOG.md`](docs/CHANGE
    reconciliation compares it to a separate query that reads performance
    alone. 272 of 274 months tie exactly. The two that don't (2006-08, 2006-09)
    contain one loan with performance records and no origination record —
-   2 loan-months, $42,000.
+   2 loan-months, $42,000. It is now a documented exception that excuses
+   only that exact difference; any other break in those months fails.
+
+3. **Look-ahead in roll rates** (found writing the tests). Transitions were
+   labelled by the month a loan moved *from*, so a June pack's "June" roll rate
+   was the June→July move — data that does not exist at a June close. Roll
+   rates are now labelled by the month the outcome is observed. A test asserts
+   that no pack contains a month after its as-of date.
+
+4. **Look-ahead in vintage curves.** The first version had no as-of filter, so
+   the 2009 pack's vintage curves included defaults through 2025. Curves are
+   now built only from loans old enough to have been observed at each age by
+   the as-of month; a test plants a future default and checks it is excluded.
 
 ---
 
@@ -113,7 +132,7 @@ Recorded in full, with re-run instructions, in [`docs/CHANGELOG.md`](docs/CHANGE
 ## Reproduce
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 # point config/monitoring_config.yaml -> source.freddie_db at your copy of the
 # Freddie Mac loan-level database (origination + performance tables)
 python src/cpml/mart/build_mart.py --time-budget 165   # repeat until 0 items remain
@@ -129,6 +148,11 @@ src/cpml/mart/build_mart.py     source → mart, chunked and resumable
 src/cpml/pack/metrics.py        stock, roll rates, vintages, concentration, denominator
 src/cpml/pack/limits.py         limit utilisation, triggers, breach log
 src/cpml/run_monthly.py         the monthly pack, one parameter
+src/cpml/pack/controls.py       reconciliation control and exceptions register
+src/cpml/report/summary.py      committee one-pager
+src/cpml/report/tableau_extracts.py   Tableau extracts
+tests/                          unit (synthetic) and integration (real mart) tests
 docs/CHANGELOG.md               decisions, verified coverage, defects found
+docs/TABLEAU_GUIDE.md           how the dashboard is built from the extracts
 outputs/200906, outputs/202509  committed sample packs (aggregates only)
 ```

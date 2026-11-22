@@ -3,6 +3,41 @@
 Every entry records what changed, why, and what a reviewer should re-run to
 confirm it. Dates are the author's local dates.
 
+## 2026-11-22 - v1.1 (config 1.1.0)
+
+**Added**
+- `src/cpml/report/summary.py`: committee one-pager (what changed, where, why,
+  so what). Every number is computed from the mart and every sentence is a
+  template filled from those numbers. Direction-aware: it says "rose" or "fell",
+  "new lending" only when a vintage's balance grew in dollars, and states a
+  vintage ordering only when the numbers show it.
+- `metrics.shift_share`: 12-month attribution of the 90+ rate into within-
+  segment change, mix and interaction. The three sum exactly to the headline
+  change (tested).
+- `src/cpml/pack/controls.py`: reconciliation as a control. PASS / EXPLAINED /
+  FAIL, with documented exceptions in the config that excuse only their exact
+  difference. A FAIL makes `run_monthly.py` exit non-zero.
+- `tests/`: 9 unit tests on a synthetic mart with hand-computable answers, and
+  5 integration tests on the real mart. Runs under pytest or the bundled
+  standard-library runner. CI runs the unit tests.
+- Tableau extracts and `docs/TABLEAU_GUIDE.md`.
+
+**Fixed**
+1. *Roll-rate look-ahead.* Transitions were labelled by the from-month, so an
+   as-of-June pack reported the June→July move. Now labelled by the month the
+   outcome is observed. In the 2009-06 pack, current→30 changes from 0.62% to
+   0.66%, 30→60 from 20.8% to 19.0%, cure from 37.5% to 38.8%. The triggers that
+   fire are unchanged. In the 2025-09 pack the old method produced a spurious
+   9.6% current→30 rate (there is no October 2025 data) and a false red alarm.
+   **Re-run:** `test_roll_rate_has_no_look_ahead`, `test_2009_pack_sees_no_later_data`.
+2. *Vintage-curve look-ahead.* `vintage_curves` had no as-of filter. Now
+   point-in-time, with the denominator at each age restricted to loans old
+   enough to have been observed. Curves as of 2025-09 are unchanged.
+   **Re-run:** `test_vintage_curve_is_point_in_time`.
+3. *DuckDB 2.0 compatibility.* `relation.fetchone()` was removed in DuckDB 2.0;
+   scalar reads now use `execute().fetchone()`. Tested on DuckDB 1.5 / pandas 2
+   and DuckDB 2.0 / pandas 3.
+
 ## 2026-11-17 - initial build
 
 **Scope decisions**

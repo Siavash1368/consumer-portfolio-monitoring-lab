@@ -1,0 +1,11 @@
+asof,limit_id,name,dimension,measured_on,measured,limit,utilisation,status,rationale
+2009-06-01,RA-01,90+ delinquency rate (balance-weighted),portfolio,portfolio,0.021236671476767142,0.04,0.5309167869191785,WITHIN,Illustrative board-level asset-quality limit.
+2009-06-01,RA-02,Single-state balance concentration,state,CA,0.13445469811418356,0.18,0.7469705450787976,WITHIN,"Illustrative geographic concentration limit, largest single state."
+2009-06-01,RA-03,Balance share with original LTV > 90,ltv_band,05 91-95+06 >95,0.05526487103961227,0.12,0.46054059199676894,WITHIN,Illustrative high-LTV origination-mix limit.
+2009-06-01,RA-04,Balance share with FICO < 660,fico_band,01 <620+02 620-659,0.09841029439229412,0.1,0.9841029439229412,WATCH,Illustrative thin-credit concentration limit.
+2009-06-01,RA-05,Investor-occupancy balance share,occupancy,I,0.0362733162023388,0.06,0.60455527003898,WITHIN,Illustrative non-owner-occupied concentration limit.
+2025-09-01,RA-01,90+ delinquency rate (balance-weighted),portfolio,portfolio,0.01743484076601235,0.04,0.43587101915030874,WITHIN,Illustrative board-level asset-quality limit.
+2025-09-01,RA-02,Single-state balance concentration,state,CA,0.11615079065094118,0.18,0.6452821702830066,WITHIN,"Illustrative geographic concentration limit, largest single state."
+2025-09-01,RA-03,Balance share with original LTV > 90,ltv_band,05 91-95+06 >95,0.08884627765464684,0.12,0.740385647122057,WITHIN,Illustrative high-LTV origination-mix limit.
+2025-09-01,RA-04,Balance share with FICO < 660,fico_band,01 <620+02 620-659,0.16281962943130976,0.1,1.6281962943130974,BREACH,Illustrative thin-credit concentration limit.
+2025-09-01,RA-05,Investor-occupancy balance share,occupancy,I,0.04324732008053888,0.06,0.7207886680089813,WITHIN,Illustrative non-owner-occupied concentration limit.

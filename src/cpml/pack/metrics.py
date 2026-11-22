@@ -16,6 +16,7 @@ Measurement conventions, stated once and applied everywhere
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from .. import config, db
@@ -71,11 +72,17 @@ def add_rates(df: pd.DataFrame) -> pd.DataFrame:
 
 # ----------------------------------------------------------- roll rates ----
 def roll_rates(con, through: str) -> pd.DataFrame:
-    """Transition rates out of each active state, by month."""
+    """Transition rates out of each active state, labelled by the month the
+    outcome is observed (the to-month)."""
     return con.sql(f"""
         WITH t AS (
-            SELECT ym_from AS ym, state_from, state_to, loans, upb_from
-            FROM fact_transition WHERE ym_from <= '{through}'
+            -- A roll rate for month t is the move from t-1 INTO t: the outcome
+            -- is observed at t, so it is known at a month-t close. Labelling by
+            -- the from-month (v1.0) used month t+1 data in a month-t pack.
+            SELECT STRFTIME(STRPTIME(ym_from, '%Y%m') + INTERVAL 1 MONTH, '%Y%m') AS ym,
+                   state_from, state_to, loans, upb_from
+            FROM fact_transition
+            WHERE STRFTIME(STRPTIME(ym_from, '%Y%m') + INTERVAL 1 MONTH, '%Y%m') <= '{through}'
         ),
         d AS (
             SELECT ym, state_from,
@@ -123,9 +130,11 @@ def headline_rolls(rr: pd.DataFrame) -> pd.DataFrame:
 
 
 def months_available(con, through: str) -> list[str]:
-    return [r[0] for r in con.sql(
+    # execute(...).fetch* works on DuckDB 1.x and 2.x; relation.fetchone()
+    # was removed in 2.0, so scalar reads go through execute() everywhere.
+    return [r[0] for r in con.execute(
         "SELECT DISTINCT ym FROM fact_cube WHERE ym <= ? ORDER BY ym",
-        params=[through]).fetchall()]
+        [through]).fetchall()]
 
 
 def flow_to_loss_12m(con, asof: str) -> float:
@@ -143,15 +152,15 @@ def flow_to_loss_12m(con, asof: str) -> float:
         return float("nan")
     window, base_month = months[-12:], months[-13]
     inlist = ", ".join(f"'{m}'" for m in window)
-    ce = con.sql(f"""
+    ce = con.execute(f"""
         SELECT COALESCE(SUM(loans), 0) FROM fact_cube
         WHERE dim_name = 'portfolio' AND loan_state = 'CREDIT_EVENT'
           AND ym IN ({inlist})
     """).fetchone()[0]
-    dq = con.sql("""
+    dq = con.execute("""
         SELECT COALESCE(SUM(loans), 0) FROM fact_cube
         WHERE dim_name = 'portfolio' AND loan_state = 'DPD90P' AND ym = ?
-    """, params=[base_month]).fetchone()[0]
+    """, [base_month]).fetchone()[0]
     return float(ce) / float(dq) if dq else float("nan")
 
 
@@ -181,39 +190,121 @@ def concentration(con, asof: str, dim: str) -> pd.DataFrame:
 
 
 # ------------------------------------------------------ vintage curves -----
-def vintage_curves(con) -> pd.DataFrame:
+def _ym_index(ym: str) -> int:
+    return int(ym[:4]) * 12 + int(ym[4:6])
+
+
+def vintage_curves(con, asof: str) -> pd.DataFrame:
     """Cumulative ever-90+ and credit-event rates by origination year against
-    months on book. Built from loan-level first-event ages, so a loan is
-    counted once, at the age it first reached the state."""
-    return con.sql("""
-        WITH base AS (
-            SELECT vintage_year, COUNT(*) AS orig_loans, SUM(original_upb) AS orig_upb
-            FROM dim_loan GROUP BY 1
-        ),
-        ev AS (
-            SELECT vintage_year, first_90p_age AS mob, COUNT(*) AS n90,
-                   SUM(original_upb) AS upb90
-            FROM dim_loan WHERE first_90p_age IS NOT NULL GROUP BY 1,2
-        ),
-        ce AS (
-            SELECT vintage_year, term_age AS mob, COUNT(*) AS nce
-            FROM dim_loan WHERE term_state='CREDIT_EVENT' AND term_age IS NOT NULL
-            GROUP BY 1,2
-        ),
-        grid AS (
-            SELECT b.vintage_year, m.mob, b.orig_loans, b.orig_upb
-            FROM base b CROSS JOIN (SELECT UNNEST(GENERATE_SERIES(0, 275)) AS mob) m
-        )
-        SELECT g.vintage_year, g.mob, g.orig_loans,
-               SUM(COALESCE(ev.n90,0))  OVER (PARTITION BY g.vintage_year
-                                              ORDER BY g.mob) / g.orig_loans AS cum_ever90_rate,
-               SUM(COALESCE(ce.nce,0))  OVER (PARTITION BY g.vintage_year
-                                              ORDER BY g.mob) / g.orig_loans AS cum_credit_event_rate
-        FROM grid g
-        LEFT JOIN ev USING (vintage_year, mob)
-        LEFT JOIN ce USING (vintage_year, mob)
-        ORDER BY g.vintage_year, g.mob
+    months on book, using only information available at `asof`.
+
+    Point-in-time rule: a loan contributes to month-on-book m only if it had
+    reached age m by the as-of month, and an event counts only if it happened
+    by then. The denominator at each m is therefore the set of loans old enough
+    to have been observed at m - not the whole vintage - so young cohorts in a
+    vintage year do not drag the curve down, and nothing after `asof` leaks in.
+    (Version 1.0 of this function had no as-of filter, so a 2009 pack showed
+    events through 2025. Fixed 2026-11-22; see docs/CHANGELOG.md.)
+    """
+    asof_idx = _ym_index(asof)
+    age = (f"{asof_idx} - (CAST(SUBSTR(first_ym,1,4) AS INTEGER) * 12"
+           f" + CAST(SUBSTR(first_ym,5,2) AS INTEGER))")
+    # Aggregate in the database first: 13M loans collapse to a few hundred
+    # thousand (vintage, age, event-age) cells, so the host never holds the
+    # loan table in memory.
+    obs = con.sql(f"""
+        SELECT vintage_year, {age} AS a, COUNT(*) AS n
+        FROM dim_loan WHERE first_ym <= '{asof}' GROUP BY 1, 2
     """).df()
+    if obs.empty:
+        return pd.DataFrame(columns=["vintage_year", "mob", "loans_observed",
+                                     "orig_loans", "observed_share",
+                                     "cum_ever90_rate", "cum_credit_event_rate"])
+    events = {
+        "cum_ever90_rate": con.sql(f"""
+            SELECT vintage_year, {age} AS a, first_90p_age AS e, COUNT(*) AS n
+            FROM dim_loan WHERE first_ym <= '{asof}' AND first_90p_age IS NOT NULL
+            GROUP BY 1, 2, 3""").df(),
+        "cum_credit_event_rate": con.sql(f"""
+            SELECT vintage_year, {age} AS a, term_age AS e, COUNT(*) AS n
+            FROM dim_loan WHERE first_ym <= '{asof}' AND term_state = 'CREDIT_EVENT'
+              AND term_age IS NOT NULL
+            GROUP BY 1, 2, 3""").df(),
+    }
+    out = []
+    for vy, g in obs.groupby("vintage_year"):
+        max_m = int(g["a"].max())
+        m = np.arange(0, max_m + 1)
+        cnt = np.zeros(max_m + 2)
+        np.add.at(cnt, np.clip(g["a"].to_numpy(), 0, max_m + 1), g["n"].to_numpy())
+        observed = cnt[::-1].cumsum()[::-1][: max_m + 1]          # loans with age >= m
+        res = {"vintage_year": int(vy), "mob": m, "loans_observed": observed,
+               "orig_loans": float(g["n"].sum())}
+        for name, ev in events.items():
+            e = ev[ev["vintage_year"] == vy]
+            hist = np.zeros((max_m + 2, max_m + 2))
+            if len(e):
+                np.add.at(hist, (np.clip(e["e"].to_numpy(), 0, max_m + 1),
+                                 np.clip(e["a"].to_numpy(), 0, max_m + 1)),
+                          e["n"].to_numpy())
+            # loans whose event age <= m <= age at as-of
+            cum_e = hist.cumsum(axis=0)
+            tail_a = cum_e[:, ::-1].cumsum(axis=1)[:, ::-1]
+            num = tail_a[m, m]
+            res[name] = np.divide(num, observed, out=np.zeros(len(m)), where=observed > 0)
+        out.append(pd.DataFrame(res))
+    df = pd.concat(out, ignore_index=True)
+    df["observed_share"] = df["loans_observed"] / df["orig_loans"]
+    return df[["vintage_year", "mob", "loans_observed", "orig_loans",
+               "observed_share", "cum_ever90_rate", "cum_credit_event_rate"]]
+
+
+def shift_share(con, asof: str, dim: str, lag: int = 12) -> pd.DataFrame:
+    """Decompose the change in the balance-weighted 90+ rate over `lag` months
+    into what happened INSIDE segments and what happened to the MIX of segments.
+
+        overall rate R = sum_s share_s * rate_s
+        dR = sum share0*drate   (rate effect: credit got worse inside segments)
+           + sum dshare*rate0   (mix effect: the book shifted toward riskier segments)
+           + sum dshare*drate   (interaction)
+
+    The three columns sum exactly to the change in the headline rate, which the
+    tests assert. This is the "why" a committee asks for: deterioration versus
+    composition."""
+    months = months_available(con, asof)
+    if len(months) <= lag:
+        return pd.DataFrame()
+    m0, m1 = months[-1 - lag], months[-1]
+
+    def seg(m):
+        return con.sql(f"""
+            SELECT dim_value,
+                   SUM(upb) AS upb,
+                   SUM(CASE WHEN loan_state='DPD90P' THEN upb ELSE 0 END) AS dq_upb
+            FROM fact_cube
+            WHERE ym = '{m}' AND dim_name = '{dim}' AND loan_state IN ({ACTIVE_SQL})
+            GROUP BY 1
+        """).df().set_index("dim_value")
+
+    s0, s1 = seg(m0), seg(m1)
+    df = s0.join(s1, how="outer", lsuffix="_0", rsuffix="_1").fillna(0.0)
+    df["share_0"] = df["upb_0"] / df["upb_0"].sum()
+    df["share_1"] = df["upb_1"] / df["upb_1"].sum()
+    df["rate_0"] = np.where(df["upb_0"] > 0, df["dq_upb_0"] / df["upb_0"].where(df["upb_0"] > 0, 1), 0.0)
+    df["rate_1"] = np.where(df["upb_1"] > 0, df["dq_upb_1"] / df["upb_1"].where(df["upb_1"] > 0, 1), 0.0)
+    d_share = df["share_1"] - df["share_0"]
+    d_rate = df["rate_1"] - df["rate_0"]
+    df["rate_effect"] = df["share_0"] * d_rate
+    df["mix_effect"] = d_share * df["rate_0"]
+    df["interaction"] = d_share * d_rate
+    df["contribution"] = df["rate_effect"] + df["mix_effect"] + df["interaction"]
+    df["ym_from"], df["ym_to"], df["dim_name"] = m0, m1, dim
+    return (df.reset_index()
+              .sort_values("contribution", ascending=False)
+              [["dim_name", "dim_value", "ym_from", "ym_to", "upb_0", "upb_1",
+                "share_0", "share_1",
+                "rate_0", "rate_1", "rate_effect", "mix_effect", "interaction",
+                "contribution"]])
 
 
 # --------------------------------------------- denominator effect check ----

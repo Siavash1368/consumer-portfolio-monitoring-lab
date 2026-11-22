@@ -20,7 +20,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import pandas as pd  # noqa: E402
 
 from cpml import config, db  # noqa: E402
-from cpml.pack import limits, metrics  # noqa: E402
+from cpml.pack import controls, limits, metrics  # noqa: E402
+from cpml.report import summary  # noqa: E402
 
 CFG = config.load()
 DIMS = ["state", "fico_band", "ltv_band", "purpose", "occupancy",
@@ -56,7 +57,11 @@ def run(asof: str, outroot: str = "outputs") -> dict:
     files.append(_write(rr, outdir, "roll_rate_matrix"))
     files.append(_write(metrics.headline_rolls(rr), outdir, "roll_rates_headline"))
 
-    files.append(_write(metrics.vintage_curves(con), outdir, "vintage_curves"))
+    files.append(_write(metrics.vintage_curves(con, asof), outdir, "vintage_curves"))
+    for dim in ("state", "vintage_year", "fico_band", "ltv_band"):
+        ss = metrics.shift_share(con, asof, dim)
+        if len(ss):
+            files.append(_write(ss, outdir, f"attribution_12m_{dim}"))
     files.append(_write(metrics.denominator_check(con, asof), outdir, "denominator_check"))
 
     conc = pd.concat(
@@ -70,6 +75,10 @@ def run(asof: str, outroot: str = "outputs") -> dict:
     files.append(_write(trg, outdir, "early_warning_triggers"))
     files.append(_write(limits.breach_log(lim, trg), outdir, "breach_log"))
 
+    rec = controls.reconcile(con, asof)
+    files.append(_write(rec, outdir, "reconciliation"))
+    rec_summary = controls.summarise(rec)
+
     manifest = {
         "asof": asof,
         "config_version": CFG["config_version"],
@@ -77,7 +86,7 @@ def run(asof: str, outroot: str = "outputs") -> dict:
         "portfolio": CFG["source"]["portfolio_name"],
         "mart_months": {"min": available[0], "max": available[-1], "n": len(available)},
         "mart_rows": {
-            t: int(con.sql(f"SELECT COUNT(*) FROM {t}").fetchone()[0])
+            t: int(con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0])
             for t in ("fact_cube", "fact_transition", "dim_loan", "fact_control_totals")
         },
         "headline": {
@@ -85,6 +94,7 @@ def run(asof: str, outroot: str = "outputs") -> dict:
             "active_upb": float(trend[trend.ym == asof]["active_upb"].iloc[0]),
             "dpd90p_rate_upb": float(trend[trend.ym == asof]["dpd90p_rate_upb"].iloc[0]),
         },
+        "reconciliation": rec_summary,
         "limits_breached": lim[lim.status == "BREACH"]["limit_id"].tolist(),
         "triggers_fired": trg[trg.status.isin(["AMBER", "RED"])]["trigger_id"].tolist(),
         "files": files,
@@ -99,8 +109,16 @@ def run(asof: str, outroot: str = "outputs") -> dict:
     print(f"  90+ rate (bal)   {h['dpd90p_rate_upb']*100:>12.2f}%")
     print(f"  limits breached  {manifest['limits_breached'] or 'none'}")
     print(f"  triggers fired   {manifest['triggers_fired'] or 'none'}")
-    print(f"  written to       {os.path.relpath(outdir, config.REPO_ROOT)}\n")
+    print(f"  reconciliation   {rec_summary['pass']} pass, {rec_summary['explained']} explained, "
+          f"{rec_summary['fail']} fail")
     con.close()
+    if not rec_summary["publishable"]:
+        # declared control behaviour: a failed reconciliation blocks publication
+        print("  CONTROL FAILURE - pack written for investigation but NOT publishable")
+        raise SystemExit(2)
+    if len(available) >= 13 and available.index(asof) >= 12:
+        print(f"  committee page   {os.path.relpath(summary.write(asof, outroot), config.REPO_ROOT)}")
+    print(f"  written to       {os.path.relpath(outdir, config.REPO_ROOT)}\n")
     return manifest
 
 

@@ -1,0 +1,15 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      # Unit tests run on a synthetic mart. Integration tests need the licensed
+      # Freddie Mac data, which is not in the repo, so they skip here and run
+      # on the build machine (python tests/run_tests.py).
+      - run: python -m pytest -q tests

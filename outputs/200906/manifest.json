@@ -1,7 +1,7 @@
 {
   "asof": "200906",
-  "config_version": "1.0.0",
-  "generated_at_utc": "2026-11-17T15:32:34+00:00",
+  "config_version": "1.1.0",
+  "generated_at_utc": "2026-11-22T20:56:35+00:00",
   "portfolio": "Freddie Mac Single-Family (public loan-level), 2003-2009 vintages",
   "mart_months": {
     "min": "200212",
@@ -19,6 +19,13 @@
     "active_upb": 1252415102564.3164,
     "dpd90p_rate_upb": 0.021236671476767142
   },
+  "reconciliation": {
+    "months": 79,
+    "pass": 77,
+    "explained": 2,
+    "fail": 0,
+    "publishable": true
+  },
   "limits_breached": [],
   "triggers_fired": [
     "EW-01",
@@ -32,15 +39,31 @@
     },
     {
       "file": "roll_rate_matrix.csv",
-      "rows": 2037
+      "rows": 2009
     },
     {
       "file": "roll_rates_headline.csv",
-      "rows": 453
+      "rows": 447
     },
     {
       "file": "vintage_curves.csv",
-      "rows": 1932
+      "rows": 299
+    },
+    {
+      "file": "attribution_12m_state.csv",
+      "rows": 54
+    },
+    {
+      "file": "attribution_12m_vintage_year.csv",
+      "rows": 7
+    },
+    {
+      "file": "attribution_12m_fico_band.csv",
+      "rows": 7
+    },
+    {
+      "file": "attribution_12m_ltv_band.csv",
+      "rows": 7
     },
     {
       "file": "denominator_check.csv",
@@ -61,6 +84,10 @@
     {
       "file": "breach_log.csv",
       "rows": 4
+    },
+    {
+      "file": "reconciliation.csv",
+      "rows": 79
     }
   ]
 }

@@ -11,7 +11,7 @@
 # the author to exercise the monitoring machinery on a public dataset. They are
 # not any institution's risk appetite.
 # ---------------------------------------------------------------------------
-config_version: "1.0.0"
+config_version: "1.1.0"
 effective_date: "2026-11-17"
 
 source:
@@ -23,6 +23,8 @@ source:
 reporting:
   default_asof: "202509"          # latest complete servicer reporting month
   featured_asof: "200906"         # worked example for the committee one-pager
+  vintage_min_observed_share: 0.5 # quote a vintage-curve point only if >=50% of the vintage was observable at that age
+  macro_unemployment_csv: "data/external/UNRATE.csv"   # FRED UNRATE, public
   currency_scale: 1000000000      # report balances in $bn
 
 # --- segment band definitions -------------------------------------------
@@ -164,4 +166,17 @@ model_monitoring:
 controls:
   reconciliation_tolerance_loans: 0        # exact match required on counts
   reconciliation_tolerance_upb_pct: 0.0001 # 1 basis point on balances
+  # Documented, reviewed breaks. Each excuses only the exact difference shown;
+  # any other difference in that month is a FAIL. See docs/CHANGELOG.md.
+  reconciliation_exceptions:
+    - ym: "200608"
+      diff_loans: 1
+      diff_upb: 42000.0
+      reason: "One loan has performance records but no origination record; the origination join drops it. Reported, not corrected - the source is the record of truth."
+      logged: "2026-11-17"
+    - ym: "200609"
+      diff_loans: 1
+      diff_upb: 0.0
+      reason: "Same orphaned loan as 200608, reported at zero balance."
+      logged: "2026-11-17"
   dq_fail_action: "A failed control blocks publication of the pack. The run writes FAIL to the control report and exits non-zero."

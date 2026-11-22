@@ -1,0 +1,11 @@
+asof,trigger_id,name,metric,value,amber,red,direction,status,action
+2009-06-01,EW-01,"90+ rate, 3-month change",dpd90p_rate_upb_chg_3m,0.004426992404979534,0.0025,0.005,max,AMBER,Amber: segment-level attribution in next pack. Red: escalate to Credit Risk Committee with a driver decomposition.
+2009-06-01,EW-02,Early-stage inflow (current to 30) rate,roll_cur_to_30,0.006582545107702091,0.015,0.025,max,GREEN,
+2009-06-01,EW-03,30 to 60 roll rate,roll_30_to_60,0.18954579803523844,0.3,0.4,max,GREEN,
+2009-06-01,EW-04,Cure rate out of 30 DPD,cure_30_to_cur,0.3875830250964483,0.4,0.3,min,AMBER,Amber: review loss-mitigation effectiveness. Red: escalate - curing has materially weakened.
+2009-06-01,EW-05,"Flow to loss (90+ to credit event, 12m)",flow_to_loss_12m,0.4721587103628259,0.25,0.35,max,RED,Amber: review severity assumptions. Red: escalate to allowance review.
+2025-09-01,EW-01,"90+ rate, 3-month change",dpd90p_rate_upb_chg_3m,-0.0001766399565239253,0.0025,0.005,max,GREEN,
+2025-09-01,EW-02,Early-stage inflow (current to 30) rate,roll_cur_to_30,0.0107904165377874,0.015,0.025,max,GREEN,
+2025-09-01,EW-03,30 to 60 roll rate,roll_30_to_60,0.1232302045097011,0.3,0.4,max,GREEN,
+2025-09-01,EW-04,Cure rate out of 30 DPD,cure_30_to_cur,0.386208704771893,0.4,0.3,min,AMBER,Amber: review loss-mitigation effectiveness. Red: escalate - curing has materially weakened.
+2025-09-01,EW-05,"Flow to loss (90+ to credit event, 12m)",flow_to_loss_12m,0.13365384615384615,0.25,0.35,max,GREEN,
