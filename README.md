@@ -38,7 +38,7 @@ python tests/run_tests.py        # or: pytest -q tests
 | **Committee one-page summary** — what changed, where, why, so what | **Built** — [`outputs/200906/committee_summary.md`](outputs/200906/committee_summary.md) |
 | **Tests** — 9 unit tests on a synthetic mart + 5 integration tests on the real mart; CI runs the unit tests | **Built** |
 | Tableau extracts (one tidy file for the dashboard) and build guide | **Built** — [`docs/TABLEAU_GUIDE.md`](docs/TABLEAU_GUIDE.md) |
-| Tableau Public dashboard | link pending |
+| Tableau Public dashboard | **Published** — [Consumer Portfolio Monitoring Lab](https://public.tableau.com/app/profile/siavash.feizi/viz/ConsumerPortfolioMonitoringLab/Dashboard1) |
 | Model-performance monitoring (PSI / AUROC / calibration escalation) | In progress |
 | CECL and PD trends, forecast vs actual | In progress |
 | Y-14M-style first-lien schedule, data-quality report, procedures | In progress |
